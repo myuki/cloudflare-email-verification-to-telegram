@@ -8,25 +8,20 @@ export default {
     const keywordList = ["verification", "验证码"]
     if (!keywordList.some(keyword => subject.includes(keyword)))
       return;
-    
-    const text = await email2text(message)
-    const body = JSON.stringify({
-      "chat_id": env.TG_CHAT_ID,
-      "parse_mode": "HTML",
-      "text": text.slice(0, 4096)
-    });
 
-    await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: body,
-    }).then(response => response.json())
-      .then(response => console.log(response))
-      .catch(err => console.error(err));
-  },
-};
+    const chatIdList = getChatIdList(env.TG_CHAT_IDS)
+    const text = await email2text(message)
+    for (const chatId of chatIdList) {
+      await sendToTg(env.BOT_TOKEN, chatId, text).then(response => response.json())
+        .then(response => console.log(response))
+        .catch(err => console.error(err));
+    }
+  }
+}
+
+function getChatIdList(chatIds) {
+  return chatIds.split(",")
+}
 
 async function stream2Rfc822(stream) {
   let chunkLen = 0;
@@ -50,7 +45,7 @@ async function stream2Rfc822(stream) {
   }
   const decoder = new TextDecoder()
   return decoder.decode(buf)
-};
+}
 
 function getVerificationFromRfc822(rfc822) {
   const contentIdx = rfc822.indexOf('Content-Type: text/html; charset="utf-8"')
@@ -66,7 +61,7 @@ function getVerificationFromRfc822(rfc822) {
   const code = match[1]
 
   return code
-};
+}
 
 async function email2text(message) {
   const subject = message.headers.get("subject")
@@ -79,4 +74,21 @@ async function email2text(message) {
   text += `<blockquote>${verification}</blockquote>`
 
   return text
+}
+
+async function sendToTg(token, chatId, text) {
+  const body = JSON.stringify({
+    "chat_id": chatId,
+    "parse_mode": "HTML",
+    "text": text.slice(0, 4096)
+  })
+
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: body,
+  })
+  return response
 }
