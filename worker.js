@@ -1,22 +1,45 @@
 export default {
   async email(message, env, ctx) {
-    const forwardAddress = env.FORWARD_ADDRESS
-    if (forwardAddress.length > 0 && message.from !== forwardAddress)
+    const forwardAddress = env.FORWARD_ADDRESS.trim()
+    const botToken = env.BOT_TOKEN.trim()
+    const tgChatIds = env.TG_CHAT_IDS.trim()
+
+    if (!botToken || !tgChatIds) {
+      console.error("Missing required environment variables");
+      return
+    }
+
+    if (checkAddress(forwardAddress))
       await message.forward(forwardAddress)
 
-    const subject = message.headers.get("subject")
-    const keywordList = ["verification", "验证码"]
-    if (!keywordList.some(keyword => subject.includes(keyword)))
+    if (!checkSubject(message))
       return;
 
-    const chatIdList = getChatIdList(env.TG_CHAT_IDS)
+    const chatIdList = getChatIdList(tgChatIds)
     const text = await email2text(message)
     for (const chatId of chatIdList) {
-      await sendToTg(env.BOT_TOKEN, chatId, text).then(response => response.json())
+      await sendToTg(botToken, chatId, text).then(response => response.json())
         .then(response => console.log(response))
-        .catch(err => console.error(err));
+        .catch(err => console.error(err))
     }
   }
+}
+
+function checkSubject(message) {
+  const keywordList = ["verification", "验证码"]
+  const subject = message.headers.get("subject")
+  if (keywordList.some(keyword => subject.includes(keyword)))
+    return true
+  else
+    return false
+}
+
+function checkAddress(address) {
+  const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (address && emailReg.test(address))
+    return true
+  else
+    return false
 }
 
 function getChatIdList(chatIds) {
